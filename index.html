@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>골프 관리 앱</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 :root {
@@ -155,6 +158,12 @@ label { display:block; font-size:13px; font-weight:500; color:var(--text2); marg
   .score-table th, .score-table td { padding:8px 5px; font-size:11px; }
 }
 
+/* ─── 로딩 오버레이 ─── */
+.loading-overlay { position:fixed; inset:0; background:rgba(35,77,35,.92); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:9999; gap:16px; }
+.loading-spinner { width:44px; height:44px; border:4px solid rgba(255,255,255,.3); border-top-color:#fff; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.loading-text { color:#fff; font-size:14px; font-weight:500; }
+
 /* ─── 옵션 버튼 ─── */
 .opt-btn { padding:7px 14px; font-size:12px; font-weight:600; border:1.5px solid #ddd; border-radius:20px; background:#fff; color:var(--text2); cursor:pointer; transition:.15s; font-family:inherit; }
 .opt-btn:hover { border-color:var(--green-400); color:var(--green-700); }
@@ -162,6 +171,11 @@ label { display:block; font-size:13px; font-weight:500; color:var(--text2); marg
 </style>
 </head>
 <body>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">데이터 불러오는 중...</div>
+</div>
 
 <div class="header">
   <h1><span>⛳</span> 골프 스코어 매니저</h1>
@@ -432,19 +446,92 @@ label { display:block; font-size:13px; font-weight:500; color:var(--text2); marg
 
 <script>
 // ═══════════════════════════════════════
-// DATA LAYER
+// DATA LAYER — Firebase Firestore
 // ═══════════════════════════════════════
-const STORE_KEYS = { players:'golf_players', scores:'golf_scores', ssHandis:'golf_ss_handis', groupHistory:'golf_group_history' };
+const firebaseConfig = {
+  apiKey: "AIzaSyDo8qkvp9jqBSBWofYooQj9Z8Wlynf7vBY",
+  authDomain: "golf-manager-4fdd6.firebaseapp.com",
+  projectId: "golf-manager-4fdd6",
+  storageBucket: "golf-manager-4fdd6.firebasestorage.app",
+  messagingSenderId: "1056450326609",
+  appId: "1:1056450326609:web:50f890a00d3629ed1ec870"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const GOLF_COL = 'golf';
+const DOC = { players:'players', scores:'scores', ssHandis:'ssHandis', groupHistory:'groupHistory' };
 
-function loadData(key) { try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; } }
-function saveData(key, data) { localStorage.setItem(key, JSON.stringify(data)); }
-
-let players = loadData(STORE_KEYS.players);
-let scores = loadData(STORE_KEYS.scores);
-// ssHandis: [{id, playerId, date, value}] — 참가횟수 카운트 안 함
-let ssHandis = loadData(STORE_KEYS.ssHandis);
-let groupHistory = loadData(STORE_KEYS.groupHistory);
+let players = [], scores = [], ssHandis = [], groupHistory = [];
 let currentGroups = null;
+let _ready = false;
+
+// Firestore에 저장 (fire-and-forget — UI는 이미 로컬 배열로 업데이트됨)
+function saveData(key, data) {
+  db.collection(GOLF_COL).doc(key).set({ items: data })
+    .catch(e => { console.error('저장 오류:', e); toast('저장 실패 — 네트워크 확인'); });
+}
+
+function activeTab() {
+  const el = document.querySelector('.tab-content.active');
+  return el ? el.id.replace('tab-','') : '';
+}
+
+async function initFirebase() {
+  try {
+    // 초기 데이터 한 번에 로드
+    const [p, s, ss, gh] = await Promise.all([
+      db.collection(GOLF_COL).doc(DOC.players).get(),
+      db.collection(GOLF_COL).doc(DOC.scores).get(),
+      db.collection(GOLF_COL).doc(DOC.ssHandis).get(),
+      db.collection(GOLF_COL).doc(DOC.groupHistory).get(),
+    ]);
+    players      = p.exists  ? (p.data().items  || []) : [];
+    scores       = s.exists  ? (s.data().items  || []) : [];
+    ssHandis     = ss.exists ? (ss.data().items || []) : [];
+    groupHistory = gh.exists ? (gh.data().items || []) : [];
+
+    document.getElementById('loadingOverlay').style.display = 'none';
+    _ready = true;
+
+    // 첫 렌더
+    renderPlayers();
+    refreshScoreTab();
+    document.getElementById('scoreDate').value = new Date().toISOString().slice(0,10);
+
+    // 실시간 리스너 — 다른 기기에서 변경하면 자동 반영
+    db.collection(GOLF_COL).doc(DOC.players).onSnapshot(snap => {
+      if(!_ready || !snap.exists) return;
+      players = snap.data().items || [];
+      renderPlayers();
+      const t = activeTab();
+      if(t==='scores') refreshScoreTab();
+      if(t==='stats')  refreshStats();
+      if(t==='groups') refreshGroupTab();
+    });
+    db.collection(GOLF_COL).doc(DOC.scores).onSnapshot(snap => {
+      if(!_ready || !snap.exists) return;
+      scores = snap.data().items || [];
+      if(activeTab()==='scores') renderRecentScores();
+      if(activeTab()==='stats')  refreshStats();
+    });
+    db.collection(GOLF_COL).doc(DOC.ssHandis).onSnapshot(snap => {
+      if(!_ready || !snap.exists) return;
+      ssHandis = snap.data().items || [];
+      renderPlayers();
+      if(activeTab()==='stats') refreshStats();
+    });
+    db.collection(GOLF_COL).doc(DOC.groupHistory).onSnapshot(snap => {
+      if(!_ready || !snap.exists) return;
+      groupHistory = snap.data().items || [];
+      if(activeTab()==='groups') renderGroupHistory();
+    });
+
+  } catch(e) {
+    console.error('Firebase 오류:', e);
+    document.getElementById('loadingOverlay').innerHTML =
+      '<div style="text-align:center;color:#fff"><div style="font-size:32px;margin-bottom:12px">⚠️</div><div style="font-size:14px">데이터 로드 실패<br><br>인터넷 연결을 확인하고<br>새로고침 해주세요</div></div>';
+  }
+}
 
 // ═══════════════════════════════════════
 // UTILITIES
@@ -1217,13 +1304,10 @@ function saveManualHistory() {
   renderGroupHistory();
 }
 document.addEventListener('DOMContentLoaded', () => {
-  renderPlayers();
-  refreshScoreTab();
-  document.getElementById('scoreDate').value = new Date().toISOString().slice(0,10);
+  initFirebase();
+  document.getElementById('playerName').addEventListener('keydown', e => { if(e.key==='Enter') addPlayer(); });
+  document.getElementById('scoreValue').addEventListener('keydown', e => { if(e.key==='Enter') addScore(); });
 });
-
-document.getElementById('playerName').addEventListener('keydown', e => { if(e.key==='Enter') addPlayer(); });
-document.getElementById('scoreValue').addEventListener('keydown', e => { if(e.key==='Enter') addScore(); });
 </script>
 </body>
 </html>
