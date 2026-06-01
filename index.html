@@ -460,6 +460,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const GOLF_COL = 'golf';
 const DOC = { players:'players', scores:'scores', ssHandis:'ssHandis', groupHistory:'groupHistory' };
+const STORE_KEYS = DOC; // 기존 코드 호환용 alias
 
 let players = [], scores = [], ssHandis = [], groupHistory = [];
 let currentGroups = null;
