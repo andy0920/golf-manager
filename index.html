@@ -1,0 +1,1229 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>골프 관리 앱</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --green-900:#1a3c1a; --green-800:#234d23; --green-700:#2d6a2d;
+  --green-600:#3a8a3a; --green-500:#4CAF50; --green-400:#66BB6A;
+  --green-300:#81C784; --green-200:#A5D6A7; --green-100:#C8E6C9; --green-50:#E8F5E9;
+  --gold:#FFD700; --gold-dark:#c9a800; --red:#e53935; --blue:#1976D2;
+  --purple:#7B1FA2; --orange:#E65100;
+  --bg:#f0f4f0; --card:#fff; --text:#1a1a1a; --text2:#555; --text3:#888;
+  --shadow:0 2px 12px rgba(0,0,0,.08); --shadow-lg:0 8px 32px rgba(0,0,0,.12);
+  --radius:14px; --radius-sm:10px;
+}
+body { font-family:'Noto Sans KR',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; padding-bottom:80px; }
+
+.header { background:linear-gradient(135deg,var(--green-800),var(--green-600)); padding:20px 16px 16px; text-align:center; position:sticky; top:0; z-index:100; box-shadow:0 4px 20px rgba(0,0,0,.15); }
+.header h1 { color:#fff; font-size:22px; font-weight:700; letter-spacing:-.5px; }
+.header h1 span { color:var(--gold); }
+.header p { color:var(--green-200); font-size:12px; margin-top:4px; }
+
+.tab-bar { display:flex; position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid #e0e0e0; z-index:100; box-shadow:0 -2px 16px rgba(0,0,0,.06); }
+.tab-btn { flex:1; display:flex; flex-direction:column; align-items:center; padding:8px 0 10px; gap:3px; border:none; background:none; cursor:pointer; color:var(--text3); font-size:11px; font-family:inherit; transition:.2s; }
+.tab-btn svg { width:24px; height:24px; transition:.2s; }
+.tab-btn.active { color:var(--green-600); }
+.tab-btn.active svg { transform:scale(1.1); }
+.tab-btn:hover { color:var(--green-500); }
+
+.tab-content { display:none; padding:16px; max-width:600px; margin:0 auto; animation:fadeIn .3s; }
+.tab-content.active { display:block; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+
+.card { background:var(--card); border-radius:var(--radius); padding:20px; margin-bottom:14px; box-shadow:var(--shadow); }
+.card-title { font-size:15px; font-weight:600; color:var(--green-800); margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+.card-title svg { width:20px; height:20px; color:var(--green-600); }
+
+input,select { width:100%; padding:12px 14px; border:2px solid #e0e0e0; border-radius:var(--radius-sm); font-family:inherit; font-size:14px; transition:.2s; outline:none; background:#fafafa; }
+input:focus,select:focus { border-color:var(--green-400); background:#fff; }
+label { display:block; font-size:13px; font-weight:500; color:var(--text2); margin-bottom:6px; }
+.form-row { display:flex; gap:10px; margin-bottom:12px; }
+.form-row > div { flex:1; }
+
+.btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:12px 20px; border:none; border-radius:var(--radius-sm); font-family:inherit; font-size:14px; font-weight:600; cursor:pointer; transition:.2s; }
+.btn:active { transform:scale(.97); }
+.btn-primary { background:var(--green-600); color:#fff; width:100%; }
+.btn-primary:hover { background:var(--green-700); }
+.btn-danger { background:var(--red); color:#fff; padding:8px 14px; font-size:12px; }
+.btn-danger:hover { opacity:.85; }
+.btn-secondary { background:#e8e8e8; color:var(--text); padding:10px 16px; font-size:13px; }
+.btn-gold { background:linear-gradient(135deg,var(--gold),#ffb300); color:#333; width:100%; font-size:15px; padding:14px; box-shadow:0 4px 16px rgba(255,215,0,.3); }
+.btn-gold:hover { box-shadow:0 6px 24px rgba(255,215,0,.5); }
+.btn-small { padding:6px 12px; font-size:12px; border-radius:8px; }
+.btn-outline { background:none; border:2px solid var(--green-400); color:var(--green-700); }
+.btn-outline.selected { background:var(--green-500); color:#fff; border-color:var(--green-500); }
+
+.player-item { display:flex; align-items:center; padding:12px 0; border-bottom:1px solid #f0f0f0; gap:12px; }
+.player-item:last-child { border:none; }
+.player-avatar { width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:700; color:#fff; flex-shrink:0; }
+.player-avatar.male { background:linear-gradient(135deg,var(--blue),#42A5F5); }
+.player-avatar.female { background:linear-gradient(135deg,#e91e63,#f06292); }
+.player-info { flex:1; min-width:0; }
+.player-name { font-size:14px; font-weight:600; }
+.player-stats { font-size:11px; color:var(--text3); margin-top:2px; }
+.player-badge { font-size:10px; padding:3px 8px; border-radius:20px; font-weight:600; }
+.badge-a { background:#fff3e0; color:#e65100; }
+.badge-b { background:#e3f2fd; color:#1565c0; }
+
+/* ─── 점수 입력 구분 박스 ─── */
+.score-section { border-radius:var(--radius-sm); padding:14px; margin-bottom:12px; }
+.score-section.stroke-section { background:#f1f8e9; border:1.5px solid var(--green-300); }
+.score-section.ss-section { background:#f3e5f5; border:1.5px solid #ce93d8; }
+.score-section-label { font-size:12px; font-weight:700; margin-bottom:10px; display:flex; align-items:center; gap:6px; }
+.score-section-label.stroke-label { color:var(--green-800); }
+.score-section-label.ss-label { color:#6a1b9a; }
+
+/* ─── SS핸디 배지 ─── */
+.badge-ss { background:#f3e5f5; color:#6a1b9a; font-size:10px; padding:2px 7px; border-radius:20px; font-weight:600; }
+
+/* ─── Score Table ─── */
+.score-table { width:100%; border-collapse:collapse; font-size:13px; }
+.score-table th { background:var(--green-50); color:var(--green-800); padding:10px 8px; text-align:left; font-weight:600; font-size:12px; }
+.score-table td { padding:10px 8px; border-bottom:1px solid #f0f0f0; vertical-align:middle; }
+.score-table tr:hover td { background:#fafafa; }
+.ss-col { color:#6a1b9a; font-weight:600; }
+.ss-th { color:#6a1b9a !important; background:#f3e5f5 !important; }
+
+.rank-num { width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; color:#fff; flex-shrink:0; }
+.rank-1 { background:linear-gradient(135deg,#FFD700,#FFA000); }
+.rank-2 { background:linear-gradient(135deg,#B0BEC5,#78909C); }
+.rank-3 { background:linear-gradient(135deg,#A1887F,#795548); }
+.rank-other { background:#e0e0e0; color:var(--text2); }
+
+.group-card { background:linear-gradient(135deg,var(--green-50),#f1f8e9); border:2px solid var(--green-200); border-radius:var(--radius); padding:16px; margin-bottom:12px; }
+.group-header { font-size:15px; font-weight:700; color:var(--green-800); margin-bottom:10px; display:flex; align-items:center; gap:8px; }
+.group-member { display:flex; align-items:center; padding:8px 0; gap:10px; border-bottom:1px solid rgba(0,0,0,.05); }
+.group-member:last-child { border:none; }
+.mini-avatar { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; color:#fff; flex-shrink:0; }
+
+.player-select-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
+.select-chip { display:flex; align-items:center; gap:8px; padding:10px 12px; border:2px solid #e0e0e0; border-radius:var(--radius-sm); cursor:pointer; transition:.2s; font-size:13px; user-select:none; }
+.select-chip:hover { border-color:var(--green-300); }
+.select-chip.checked { border-color:var(--green-500); background:var(--green-50); }
+.select-chip .chip-check { width:20px; height:20px; border:2px solid #ccc; border-radius:6px; display:flex; align-items:center; justify-content:center; transition:.2s; flex-shrink:0; }
+.select-chip.checked .chip-check { background:var(--green-500); border-color:var(--green-500); }
+.chip-gender { font-size:11px; color:var(--text3); }
+
+.toast { position:fixed; top:80px; left:50%; transform:translateX(-50%) translateY(-20px); background:#333; color:#fff; padding:12px 24px; border-radius:30px; font-size:13px; font-weight:500; z-index:999; opacity:0; transition:.3s; pointer-events:none; }
+.toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:200; align-items:center; justify-content:center; padding:20px; }
+.modal-overlay.show { display:flex; }
+.modal { background:#fff; border-radius:var(--radius); padding:24px; max-width:400px; width:100%; max-height:80vh; overflow-y:auto; animation:fadeIn .3s; }
+.modal h3 { font-size:17px; margin-bottom:16px; color:var(--green-800); }
+.modal-actions { display:flex; gap:10px; margin-top:16px; }
+.modal-actions .btn { flex:1; }
+
+.empty { text-align:center; padding:40px 20px; color:var(--text3); }
+.empty svg { width:48px; height:48px; margin-bottom:12px; opacity:.4; }
+.empty p { font-size:14px; }
+
+.stat-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:14px; }
+.stat-box { text-align:center; padding:14px 8px; border-radius:var(--radius-sm); background:var(--green-50); }
+.stat-box .num { font-size:22px; font-weight:700; color:var(--green-700); }
+.stat-box .lbl { font-size:11px; color:var(--text3); margin-top:2px; }
+
+.round-item { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid #f0f0f0; }
+.round-item:last-child { border:none; }
+.round-date { font-size:13px; font-weight:500; }
+.round-score { font-size:18px; font-weight:700; color:var(--green-700); }
+.round-delete { background:none; border:none; color:#ccc; cursor:pointer; font-size:18px; padding:4px; transition:.2s; }
+.round-delete:hover { color:var(--red); }
+
+.ab-section { margin-bottom:12px; }
+.ab-label { font-size:12px; font-weight:700; padding:4px 12px; border-radius:20px; display:inline-block; margin-bottom:8px; }
+.ab-label-a { background:#fff3e0; color:#e65100; }
+.ab-label-b { background:#e3f2fd; color:#1565c0; }
+
+.group-history-item { padding:12px; background:#fafafa; border-radius:var(--radius-sm); margin-bottom:8px; border-left:3px solid var(--green-400); }
+.group-history-date { font-size:12px; color:var(--text3); margin-bottom:6px; font-weight:500; }
+
+::-webkit-scrollbar { width:4px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:#ccc; border-radius:4px; }
+
+/* 반응형 */
+@media(max-width:400px) {
+  .player-select-grid { grid-template-columns:1fr; }
+  .stat-row { grid-template-columns:1fr 1fr 1fr; gap:6px; }
+  .form-row { flex-direction:column; gap:8px; }
+  .score-table th, .score-table td { padding:8px 5px; font-size:11px; }
+}
+
+/* ─── 옵션 버튼 ─── */
+.opt-btn { padding:7px 14px; font-size:12px; font-weight:600; border:1.5px solid #ddd; border-radius:20px; background:#fff; color:var(--text2); cursor:pointer; transition:.15s; font-family:inherit; }
+.opt-btn:hover { border-color:var(--green-400); color:var(--green-700); }
+.opt-btn.active { background:var(--green-600); color:#fff; border-color:var(--green-600); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><span>⛳</span> 골프 스코어 매니저</h1>
+  <p>선수 관리 · 점수 기록 · 통계 · 조 편성</p>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ═══ TAB 1: 선수 관리 ═══ -->
+<div class="tab-content active" id="tab-players">
+  <div class="card">
+    <div class="card-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+      선수 등록
+    </div>
+    <div class="form-row">
+      <div>
+        <label>이름</label>
+        <input type="text" id="playerName" placeholder="선수 이름" maxlength="10">
+      </div>
+      <div>
+        <label>성별</label>
+        <select id="playerGender">
+          <option value="M">남성 ♂</option>
+          <option value="F">여성 ♀</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="addPlayer()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      선수 추가
+    </button>
+  </div>
+  <div class="card">
+    <div class="card-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+      등록 선수 <span id="playerCount" style="color:var(--green-500)">(0)</span>
+    </div>
+    <div id="playerList"></div>
+  </div>
+
+  <!-- SS핸디 입력 카드 -->
+  <div class="card" id="ssInputCard" style="display:none">
+    <div class="card-title" style="color:#6a1b9a">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#7b1fa2" stroke-width="2" style="width:20px;height:20px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      <span id="ssInputCardTitle">SS핸디 입력</span>
+    </div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:12px;background:#f3e5f5;padding:8px 12px;border-radius:var(--radius-sm)">
+      SS핸디는 참가 횟수에 포함되지 않으며, 별도 평균으로 통계에 표시됩니다.
+    </div>
+    <div class="form-row">
+      <div>
+        <label>날짜</label>
+        <input type="date" id="ssInputDate">
+      </div>
+      <div>
+        <label>SS핸디 값</label>
+        <input type="number" id="ssInputValue" placeholder="예: 12.5" min="-50" max="100" step="0.1" style="border-color:#ce93d8">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="saveSSHandi()" style="background:#7b1fa2;flex:1">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        SS핸디 저장
+      </button>
+      <button class="btn btn-secondary" onclick="closeSSInput()" style="width:80px">취소</button>
+    </div>
+    <!-- 해당 선수의 SS핸디 기록 -->
+    <div id="ssHistoryForPlayer" style="margin-top:14px"></div>
+  </div>
+</div>
+
+<!-- ═══ TAB 2: 점수 입력 ═══ -->
+<div class="tab-content" id="tab-scores">
+  <div class="card">
+    <div class="card-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      점수 입력
+    </div>
+
+    <div class="form-row">
+      <div>
+        <label>선수 선택</label>
+        <select id="scorePlayer"><option value="">선수를 선택하세요</option></select>
+      </div>
+      <div>
+        <label>날짜</label>
+        <input type="date" id="scoreDate">
+      </div>
+    </div>
+
+    <div style="margin-bottom:12px">
+      <label>타수 (스트로크)</label>
+      <input type="number" id="scoreValue" placeholder="예: 85" min="50" max="200">
+    </div>
+
+    <button class="btn btn-primary" onclick="addScore()" style="margin-top:4px">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      점수 저장
+    </button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      최근 기록
+    </div>
+    <div id="recentScores"></div>
+  </div>
+</div>
+
+<!-- ═══ TAB 3: 통계 ═══ -->
+<div class="tab-content" id="tab-stats">
+  <div class="stat-row" id="globalStats">
+    <div class="stat-box"><div class="num" id="statPlayers">0</div><div class="lbl">등록 선수</div></div>
+    <div class="stat-box"><div class="num" id="statRounds">0</div><div class="lbl">총 라운드</div></div>
+    <div class="stat-box"><div class="num" id="statAvg">-</div><div class="lbl">전체 평균타</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+      순위표 (평균 타수 기준)
+    </div>
+    <!-- 범례 -->
+    <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+      <span style="font-size:11px;color:var(--green-700);display:flex;align-items:center;gap:4px">
+        <span style="width:10px;height:10px;background:var(--green-50);border:1px solid var(--green-400);border-radius:2px;display:inline-block"></span>
+        평균타 = (타수평균 + SS핸디평균) ÷ 2
+      </span>
+      <span style="font-size:11px;color:#6a1b9a;display:flex;align-items:center;gap:4px">
+        <span style="width:10px;height:10px;background:#f3e5f5;border:1px solid #ce93d8;border-radius:2px;display:inline-block"></span>
+        SS핸디 평균 (참가 횟수 미포함)
+      </span>
+    </div>
+    <div id="rankingList"></div>
+  </div>
+</div>
+
+<!-- ═══ TAB 4: 조 편성 ═══ -->
+<div class="tab-content" id="tab-groups">
+  <div class="card">
+    <div class="card-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+      참가 선수 선택
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <button class="btn btn-small btn-outline" onclick="selectAll(true)">전체 선택</button>
+      <button class="btn btn-small btn-outline" onclick="selectAll(false)">전체 해제</button>
+      <span style="flex:1"></span>
+      <span id="selectedCount" style="font-size:13px;color:var(--text3);align-self:center">0명 선택</span>
+    </div>
+    <div class="player-select-grid" id="playerSelectGrid"></div>
+    <div style="background:var(--green-50);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--green-800)">
+      📋 조당 <strong>4명</strong> 고정 · <strong>A팀 2명 + B팀 2명</strong> · A/B팀은 합계 최솟값으로 균등 분배
+    </div>
+    <button class="btn btn-gold" onclick="generateGroups()">⛳ 자동 조 편성</button>
+  </div>
+
+  <div id="abTeamDisplay" style="display:none">
+    <div class="card">
+      <div class="card-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        A/B팀 분류
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="ab-section">
+          <div class="ab-label ab-label-a" style="margin-bottom:8px">A팀</div>
+          <div id="teamAList"></div>
+          <div id="teamAAvg" style="font-size:11px;color:var(--text3);margin-top:6px;text-align:right"></div>
+        </div>
+        <div class="ab-section">
+          <div class="ab-label ab-label-b" style="margin-bottom:8px">B팀</div>
+          <div id="teamBList"></div>
+          <div id="teamBAvg" style="font-size:11px;color:var(--text3);margin-top:6px;text-align:right"></div>
+        </div>
+      </div>
+      <div id="teamSumDiff" style="margin-top:10px;padding:8px 12px;background:#f5f5f5;border-radius:var(--radius-sm);font-size:12px;text-align:center"></div>
+    </div>
+  </div>
+
+  <div id="groupResult"></div>
+
+  <div id="saveGroupArea" style="display:none;margin-bottom:14px">
+    <div class="card" style="padding:16px">
+      <div style="font-size:13px;font-weight:600;color:var(--green-800);margin-bottom:10px">조 편성 저장</div>
+      <div class="form-row" style="margin-bottom:12px">
+        <div>
+          <label>년월 (해당 달)</label>
+          <input type="month" id="saveYearMonth">
+        </div>
+        <div>
+          <label>메모 (선택)</label>
+          <input type="text" id="saveMemo" placeholder="예: 5월 정기 라운드" maxlength="20">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="saveGroupHistory()" style="background:var(--green-700)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
+        이 조 편성 저장
+      </button>
+    </div>
+  </div>
+
+  <div class="card" id="groupHistoryCard" style="display:none">
+    <div class="card-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+      월별 조 편성 기록
+    </div>
+    <div id="groupHistoryList"></div>
+  </div>
+
+  <!-- 이전 조편성 수동 입력 -->
+  <div class="card">
+    <div class="card-title" style="cursor:pointer" onclick="toggleManualEntry()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      이전 조편성 직접 입력
+      <span id="manualEntryToggle" style="margin-left:auto;font-size:13px;color:var(--text3)">▼ 펼치기</span>
+    </div>
+    <div id="manualEntryArea" style="display:none">
+      <div style="font-size:12px;color:var(--text3);background:#f5f5f5;padding:10px 12px;border-radius:var(--radius-sm);margin-bottom:14px">
+        과거 조편성 기록을 입력하면 다음 자동 조편성 시 중복 회피에 반영됩니다.
+      </div>
+      <div class="form-row" style="margin-bottom:12px">
+        <div>
+          <label>년월</label>
+          <input type="month" id="manualYearMonth">
+        </div>
+        <div>
+          <label>메모 (선택)</label>
+          <input type="text" id="manualMemo" placeholder="예: 4월 정기 라운드" maxlength="20">
+        </div>
+      </div>
+      <div id="manualGroupList"></div>
+      <button class="btn btn-secondary" onclick="addManualGroup()" style="margin-bottom:12px;width:100%">
+        + 조 추가
+      </button>
+      <button class="btn btn-primary" onclick="saveManualHistory()" style="background:var(--green-700)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
+        이전 조편성 저장
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Bottom Tab Bar -->
+<nav class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('players',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+    선수관리
+  </button>
+  <button class="tab-btn" onclick="switchTab('scores',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    점수입력
+  </button>
+  <button class="tab-btn" onclick="switchTab('stats',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+    통계
+  </button>
+  <button class="tab-btn" onclick="switchTab('groups',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+    조편성
+  </button>
+</nav>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" id="modalContent"></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════
+// DATA LAYER
+// ═══════════════════════════════════════
+const STORE_KEYS = { players:'golf_players', scores:'golf_scores', ssHandis:'golf_ss_handis', groupHistory:'golf_group_history' };
+
+function loadData(key) { try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; } }
+function saveData(key, data) { localStorage.setItem(key, JSON.stringify(data)); }
+
+let players = loadData(STORE_KEYS.players);
+let scores = loadData(STORE_KEYS.scores);
+// ssHandis: [{id, playerId, date, value}] — 참가횟수 카운트 안 함
+let ssHandis = loadData(STORE_KEYS.ssHandis);
+let groupHistory = loadData(STORE_KEYS.groupHistory);
+let currentGroups = null;
+
+// ═══════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  if(btn) btn.classList.add('active');
+  if(name==='scores') refreshScoreTab();
+  if(name==='stats') refreshStats();
+  if(name==='groups') refreshGroupTab();
+}
+
+function getPlayerScores(pid) { return scores.filter(s => s.playerId === pid); }
+function getPlayerSSHandis(pid) { return ssHandis.filter(s => s.playerId === pid); }
+
+function getAvg(pid) {
+  const s = getPlayerScores(pid);
+  if(!s.length) return null;
+  return s.reduce((a,b) => a+b.score, 0) / s.length;
+}
+
+function getSSAvg(pid) {
+  const s = getPlayerSSHandis(pid);
+  if(!s.length) return null;
+  return s.reduce((a,b) => a+b.value, 0) / s.length;
+}
+
+function showModal(html) {
+  document.getElementById('modalContent').innerHTML = html;
+  document.getElementById('modalOverlay').classList.add('show');
+}
+function closeModal() { document.getElementById('modalOverlay').classList.remove('show'); }
+document.getElementById('modalOverlay').addEventListener('click', e => { if(e.target===e.currentTarget) closeModal(); });
+
+// ═══════════════════════════════════════
+// TAB 1: PLAYER MANAGEMENT
+// ═══════════════════════════════════════
+function addPlayer() {
+  const nameEl = document.getElementById('playerName');
+  const genderEl = document.getElementById('playerGender');
+  const name = nameEl.value.trim();
+  if(!name) { toast('이름을 입력해주세요'); return; }
+  if(players.find(p => p.name === name)) { toast('이미 등록된 이름입니다'); return; }
+  players.push({ id: uid(), name, gender: genderEl.value });
+  saveData(STORE_KEYS.players, players);
+  nameEl.value = '';
+  toast(`${name} 선수 등록 완료!`);
+  renderPlayers();
+}
+
+function deletePlayer(pid) {
+  const p = players.find(x => x.id === pid);
+  showModal(`
+    <h3>선수 삭제</h3>
+    <p style="margin-bottom:8px"><strong>${p.name}</strong> 선수를 삭제하시겠습니까?</p>
+    <p style="font-size:12px;color:var(--text3)">해당 선수의 모든 점수·SS핸디 기록도 함께 삭제됩니다.</p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">취소</button>
+      <button class="btn btn-danger" onclick="confirmDelete('${pid}')">삭제</button>
+    </div>
+  `);
+}
+
+function confirmDelete(pid) {
+  const p = players.find(x => x.id === pid);
+  players = players.filter(x => x.id !== pid);
+  scores = scores.filter(s => s.playerId !== pid);
+  ssHandis = ssHandis.filter(s => s.playerId !== pid);
+  saveData(STORE_KEYS.players, players);
+  saveData(STORE_KEYS.scores, scores);
+  saveData(STORE_KEYS.ssHandis, ssHandis);
+  closeModal();
+  toast(`${p.name} 선수 삭제됨`);
+  renderPlayers();
+}
+
+let ssInputTargetPid = null;
+
+function renderPlayers() {
+  const list = document.getElementById('playerList');
+  document.getElementById('playerCount').textContent = `(${players.length})`;
+  if(!players.length) {
+    list.innerHTML = '<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><p>등록된 선수가 없습니다</p></div>';
+    return;
+  }
+  list.innerHTML = players.map(p => {
+    const rounds = getPlayerScores(p.id).length;
+    const avg = getAvg(p.id);
+    const ssAvg = getSSAvg(p.id);
+    const ssCount = getPlayerSSHandis(p.id).length;
+    const isActive = ssInputTargetPid === p.id;
+    return `<div class="player-item" id="pitem-${p.id}">
+      <div class="player-avatar ${p.gender==='M'?'male':'female'}">${p.name[0]}</div>
+      <div class="player-info">
+        <div class="player-name">${p.name} <span style="font-size:11px;color:var(--text3)">${p.gender==='M'?'♂':'♀'}</span></div>
+        <div class="player-stats">
+          참가 ${rounds}회${avg ? ' · 평균 '+avg.toFixed(1)+'타' : ''}
+          ${ssAvg !== null ? ' · <span style="color:#6a1b9a;font-weight:600">SS '+ssAvg.toFixed(1)+'</span>(${ssCount}회)' : ''}
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <button class="btn btn-small" onclick="openSSInput('${p.id}')"
+          style="background:${isActive?'#7b1fa2':'#f3e5f5'};color:${isActive?'#fff':'#6a1b9a'};font-size:11px;padding:6px 10px;border-radius:8px;white-space:nowrap">
+          ★ SS핸디
+        </button>
+        <button class="btn btn-danger btn-small" onclick="deletePlayer('${p.id}')">삭제</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openSSInput(pid) {
+  ssInputTargetPid = pid;
+  const p = players.find(x => x.id === pid);
+  const card = document.getElementById('ssInputCard');
+  document.getElementById('ssInputCardTitle').textContent = `${p.name} — SS핸디 입력`;
+  document.getElementById('ssInputDate').value = new Date().toISOString().slice(0,10);
+  document.getElementById('ssInputValue').value = '';
+  card.style.display = 'block';
+  // 해당 선수 SS기록 표시
+  renderSSHistoryForPlayer(pid);
+  // 카드로 스크롤
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // 선수 목록 버튼 색 갱신
+  renderPlayers();
+}
+
+function closeSSInput() {
+  ssInputTargetPid = null;
+  document.getElementById('ssInputCard').style.display = 'none';
+  renderPlayers();
+}
+
+function saveSSHandi() {
+  if(!ssInputTargetPid) return;
+  const dateVal = document.getElementById('ssInputDate').value;
+  const valRaw = document.getElementById('ssInputValue').value;
+  if(!dateVal) { toast('날짜를 입력해주세요'); return; }
+  if(valRaw === '') { toast('SS핸디 값을 입력해주세요'); return; }
+  const val = parseFloat(valRaw);
+  if(isNaN(val)) { toast('올바른 숫자를 입력해주세요'); return; }
+  const p = players.find(x => x.id === ssInputTargetPid);
+  ssHandis.push({ id: uid(), playerId: ssInputTargetPid, date: dateVal, value: val });
+  saveData(STORE_KEYS.ssHandis, ssHandis);
+  document.getElementById('ssInputValue').value = '';
+  toast(`${p.name} SS핸디 ${val} 저장!`);
+  renderSSHistoryForPlayer(ssInputTargetPid);
+  renderPlayers();
+}
+
+function renderSSHistoryForPlayer(pid) {
+  const div = document.getElementById('ssHistoryForPlayer');
+  const records = ssHandis.filter(s => s.playerId === pid).sort((a,b) => b.date.localeCompare(a.date));
+  if(!records.length) {
+    div.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:8px 0">아직 SS핸디 기록이 없습니다</div>';
+    return;
+  }
+  const avg = records.reduce((a,b) => a+b.value, 0) / records.length;
+  div.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span style="font-size:12px;font-weight:600;color:var(--text2)">기록 ${records.length}회</span>
+      <span style="font-size:13px;font-weight:700;color:#6a1b9a">평균 ${avg.toFixed(1)}</span>
+    </div>
+    ${records.map(rec => `
+      <div class="round-item">
+        <div style="font-size:12px;color:var(--text3)">${rec.date}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:15px;font-weight:700;color:#6a1b9a">${rec.value}</span>
+          <button class="round-delete" onclick="deleteSSHandiFromPlayer('${rec.id}','${pid}')">×</button>
+        </div>
+      </div>`).join('')}`;
+}
+
+function deleteSSHandiFromPlayer(sid, pid) {
+  ssHandis = ssHandis.filter(s => s.id !== sid);
+  saveData(STORE_KEYS.ssHandis, ssHandis);
+  toast('SS핸디 기록 삭제됨');
+  renderSSHistoryForPlayer(pid);
+  renderPlayers();
+}
+
+// ═══════════════════════════════════════
+// TAB 2: SCORE INPUT
+// ═══════════════════════════════════════
+function refreshScoreTab() {
+  const sel = document.getElementById('scorePlayer');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">선수를 선택하세요</option>' +
+    players.map(p => `<option value="${p.id}">${p.name} (${p.gender==='M'?'남':'여'})</option>`).join('');
+  if(current && players.find(p=>p.id===current)) sel.value = current;
+  document.getElementById('scoreDate').value = new Date().toISOString().slice(0,10);
+  renderRecentScores();
+}
+
+function addScore() {
+  const pid = document.getElementById('scorePlayer').value;
+  const date = document.getElementById('scoreDate').value;
+  const strokeRaw = document.getElementById('scoreValue').value;
+
+  if(!pid) { toast('선수를 선택해주세요'); return; }
+  if(!date) { toast('날짜를 선택해주세요'); return; }
+  if(strokeRaw === '') { toast('타수를 입력해주세요'); return; }
+
+  const strokeVal = parseInt(strokeRaw);
+  if(strokeVal < 50 || strokeVal > 200) { toast('타수를 정확히 입력해주세요 (50~200)'); return; }
+
+  const p = players.find(x=>x.id===pid);
+  scores.push({ id: uid(), playerId: pid, date, score: strokeVal });
+  saveData(STORE_KEYS.scores, scores);
+  toast(`${p.name} ${strokeVal}타 저장!`);
+  document.getElementById('scoreValue').value = '';
+  renderRecentScores();
+}
+
+function deleteScore(sid) {
+  scores = scores.filter(s => s.id !== sid);
+  saveData(STORE_KEYS.scores, scores);
+  toast('타수 기록 삭제됨');
+  renderRecentScores();
+}
+
+function renderRecentScores() {
+  const div = document.getElementById('recentScores');
+  const recent = [...scores].sort((a,b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id)).slice(0,15);
+  if(!recent.length) {
+    div.innerHTML = '<div class="empty"><p>아직 기록이 없습니다</p></div>';
+    return;
+  }
+  div.innerHTML = recent.map(s => {
+    const p = players.find(x=>x.id===s.playerId);
+    if(!p) return '';
+    return `<div class="round-item">
+      <div>
+        <div class="round-date">${p.name} <span style="color:var(--text3);font-size:11px">${p.gender==='M'?'♂':'♀'}</span></div>
+        <div style="font-size:11px;color:var(--text3)">${s.date}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="round-score">${s.score}<span style="font-size:12px;color:var(--text3)">타</span></div>
+        <button class="round-delete" onclick="deleteScore('${s.id}')">×</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════
+// TAB 3: STATISTICS
+// ═══════════════════════════════════════
+function refreshStats() {
+  document.getElementById('statPlayers').textContent = players.length;
+  // 총 라운드 = 타수 기록 수 (SS핸디 미포함)
+  document.getElementById('statRounds').textContent = scores.length;
+  if(scores.length) {
+    const allAvg = scores.reduce((a,b) => a+b.score, 0) / scores.length;
+    document.getElementById('statAvg').textContent = allAvg.toFixed(1);
+  } else {
+    document.getElementById('statAvg').textContent = '-';
+  }
+
+  const list = document.getElementById('rankingList');
+
+  // 타수 기록 있는 선수 기준 순위, SS핸디는 별도 표시
+  const allPlayers = players.map(p => {
+    const s = getPlayerScores(p.id);
+    const strokeAvg = getAvg(p.id);
+    const min = s.length ? Math.min(...s.map(x=>x.score)) : null;
+    const max = s.length ? Math.max(...s.map(x=>x.score)) : null;
+    const ssAvg = getSSAvg(p.id);
+    // 평균타 = 타수평균과 SS핸디평균이 모두 있으면 둘의 평균, 하나만 있으면 그 값
+    let combinedAvg = null;
+    if(strokeAvg !== null && ssAvg !== null) combinedAvg = (strokeAvg + ssAvg) / 2;
+    else if(strokeAvg !== null) combinedAvg = strokeAvg;
+    else if(ssAvg !== null) combinedAvg = ssAvg;
+    return { ...p, rounds: s.length, strokeAvg, combinedAvg, min, max, ssAvg };
+  });
+
+  // 순위는 combinedAvg 기준
+  const withScores = allPlayers.filter(p => p.combinedAvg !== null).sort((a,b) => a.combinedAvg - b.combinedAvg);
+  const withoutScores = allPlayers.filter(p => p.combinedAvg === null);
+  const ranked = [...withScores, ...withoutScores];
+
+  if(!ranked.length) {
+    list.innerHTML = '<div class="empty"><p>등록된 선수가 없습니다</p></div>';
+    return;
+  }
+
+  list.innerHTML = `<div style="overflow-x:auto">
+    <table class="score-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>선수</th>
+          <th>참가</th>
+          <th>평균타</th>
+          <th>최저</th>
+          <th>최고</th>
+          <th class="ss-th">SS핸디<br><span style="font-weight:400;font-size:10px">(평균)</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${ranked.map((p, i) => {
+          const rankIdx = withScores.indexOf(p);
+          const hasRank = rankIdx !== -1;
+          return `<tr>
+            <td>${hasRank
+              ? `<div class="rank-num ${rankIdx<3?'rank-'+(rankIdx+1):'rank-other'}">${rankIdx+1}</div>`
+              : `<div class="rank-num rank-other">-</div>`
+            }</td>
+            <td><strong>${p.name}</strong> <span style="font-size:11px;color:var(--text3)">${p.gender==='M'?'♂':'♀'}</span></td>
+            <td>${p.rounds}회</td>
+            <td>${p.combinedAvg !== null ? `<strong style="color:var(--green-700)">${Math.round(p.combinedAvg)}</strong>` : '<span style="color:var(--text3)">-</span>'}</td>
+            <td style="color:var(--blue)">${p.min !== null ? p.min : '-'}</td>
+            <td style="color:var(--red)">${p.max !== null ? p.max : '-'}</td>
+            <td class="ss-col">${p.ssAvg !== null ? p.ssAvg.toFixed(1) : '<span style="color:var(--text3);font-weight:400">-</span>'}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+// ═══════════════════════════════════════
+// TAB 4: GROUP ASSIGNMENT
+// ═══════════════════════════════════════
+let selectedPlayers = new Set();
+
+function getCombinedAvg(pid) {
+  const strokeAvg = getAvg(pid);
+  const ssAvg = getSSAvg(pid);
+  if(strokeAvg !== null && ssAvg !== null) return (strokeAvg + ssAvg) / 2;
+  if(strokeAvg !== null) return strokeAvg;
+  if(ssAvg !== null) return ssAvg;
+  return null;
+}
+
+function refreshGroupTab() {
+  const grid = document.getElementById('playerSelectGrid');
+  const sorted = [...players].sort((a,b) => {
+    const aa = getCombinedAvg(a.id), bb = getCombinedAvg(b.id);
+    if(aa===null && bb===null) return 0;
+    if(aa===null) return 1;
+    if(bb===null) return -1;
+    return aa - bb;
+  });
+  grid.innerHTML = sorted.map(p => {
+    const avg = getCombinedAvg(p.id);
+    const checked = selectedPlayers.has(p.id) ? 'checked' : '';
+    return `<div class="select-chip ${checked}" onclick="togglePlayer('${p.id}', this)">
+      <div class="chip-check">${checked?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>':''}</div>
+      <div>
+        <div style="font-weight:600">${p.name} <span class="chip-gender">${p.gender==='M'?'♂':'♀'}</span></div>
+        <div style="font-size:11px;color:var(--text3)">${avg !== null ? '평균 '+Math.round(avg)+'타' : '기록 없음'}</div>
+      </div>
+    </div>`;
+  }).join('');
+  updateSelectedCount();
+  renderGroupHistory();
+  // 저장 년월 기본값 세팅
+  const ym = document.getElementById('saveYearMonth');
+  if(ym && !ym.value) ym.value = new Date().toISOString().slice(0,7);
+}
+
+function togglePlayer(pid, el) {
+  if(selectedPlayers.has(pid)) { selectedPlayers.delete(pid); el.classList.remove('checked'); el.querySelector('.chip-check').innerHTML=''; }
+  else { selectedPlayers.add(pid); el.classList.add('checked'); el.querySelector('.chip-check').innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>'; }
+  updateSelectedCount();
+}
+
+function selectAll(on) {
+  selectedPlayers.clear();
+  if(on) players.forEach(p => selectedPlayers.add(p.id));
+  refreshGroupTab();
+}
+
+function updateSelectedCount() {
+  document.getElementById('selectedCount').textContent = selectedPlayers.size + '명 선택';
+}
+
+// ─── 과거 동일조 페어 카운트 (월 구분) ───
+function buildPairMatrix() {
+  const matrix = {};
+  groupHistory.forEach(gh => {
+    gh.groups.forEach(grp => {
+      for(let i=0; i<grp.length; i++) {
+        for(let j=i+1; j<grp.length; j++) {
+          const key = [grp[i], grp[j]].sort().join('-');
+          matrix[key] = (matrix[key]||0) + 1;
+        }
+      }
+    });
+  });
+  return matrix;
+}
+
+function pairCount(matrix, id1, id2) {
+  return matrix[[id1,id2].sort().join('-')] || 0;
+}
+
+// ─── A/B팀 분류: 조합 완전탐색으로 합계 차이 최소화 ───
+function splitTeams(playersData) {
+  const n = playersData.length;
+  const halfA = Math.ceil(n / 2); // A팀 인원 (홀수면 1명 더)
+  const totalSum = playersData.reduce((s, p) => s + p.avg, 0);
+
+  let bestDiff = Infinity;
+  let bestIndices = null;
+
+  // 조합 탐색: n명에서 halfA명 선택하는 모든 경우 탐색
+  // C(20,10)=184,756 / C(16,8)=12,870 — 충분히 빠름
+  function combine(start, chosen, currentSum) {
+    if(chosen.length === halfA) {
+      const diff = Math.abs(totalSum - 2 * currentSum);
+      if(diff < bestDiff) {
+        bestDiff = diff;
+        bestIndices = [...chosen];
+      }
+      return;
+    }
+    const remaining = n - start;
+    const need = halfA - chosen.length;
+    if(remaining < need) return; // 가지치기
+    for(let i = start; i < n; i++) {
+      chosen.push(i);
+      combine(i + 1, chosen, currentSum + playersData[i].avg);
+      chosen.pop();
+    }
+  }
+  combine(0, [], 0);
+
+  const aSet = new Set(bestIndices);
+  const teamA = playersData.filter((_, i) => aSet.has(i));
+  const teamB = playersData.filter((_, i) => !aSet.has(i));
+  const sumA  = teamA.reduce((s, p) => s + p.avg, 0);
+  const sumB  = teamB.reduce((s, p) => s + p.avg, 0);
+  return { teamA, teamB, sumA, sumB };
+}
+
+// ─── 조 점수 계산: 중복 페어·성별 불균형 패널티 ───
+function scoreGroup(grp, pairMatrix) {
+  let s = 0;
+  for(let i=0;i<grp.length;i++)
+    for(let j=i+1;j<grp.length;j++)
+      s += pairCount(pairMatrix, grp[i].id, grp[j].id) * 200; // 중복 강력 패널티
+  const males   = grp.filter(p=>p.gender==='M').length;
+  const females = grp.filter(p=>p.gender==='F').length;
+  s += Math.abs(males - females) * 50; // 성별 불균형 패널티
+  return s;
+}
+
+// ─── 메인 조 편성 ───
+function generateGroups() {
+  const sel = [...selectedPlayers];
+  const GROUP_SIZE = 4;
+  if(sel.length < GROUP_SIZE) { toast('최소 4명을 선택해주세요'); return; }
+
+  const globalAvg = scores.length ? scores.reduce((a,b)=>a+b.score,0)/scores.length : 90;
+  const playersData = sel.map(pid => {
+    const p = players.find(x=>x.id===pid);
+    const avg = getCombinedAvg(pid);
+    return { id: pid, name: p.name, gender: p.gender, avg: avg !== null ? avg : globalAvg };
+  });
+
+  // A/B팀 분류 (합계 최적 분배)
+  const { teamA, teamB, sumA, sumB } = splitTeams(playersData);
+  renderABTeams(teamA, teamB, sumA, sumB);
+
+  const numGroups = Math.floor(sel.length / GROUP_SIZE);
+  if(numGroups === 0) { toast('4명 이상 선택해주세요'); return; }
+
+  const pairMatrix = buildPairMatrix();
+  const aSet = new Set(teamA.map(p => p.id));
+
+  // 자동 균등 성별 배분
+  const totalM = playersData.filter(p=>p.gender==='M').length;
+  const totalF = playersData.filter(p=>p.gender==='F').length;
+  const targetMale = Math.round(totalM / numGroups);
+
+  let bestGroups = null;
+  let bestScore  = Infinity;
+  const ITERS = 1000;
+
+  for(let iter = 0; iter < ITERS; iter++) {
+    const AM = teamA.filter(p=>p.gender==='M').sort(()=>Math.random()-.5);
+    const AF = teamA.filter(p=>p.gender==='F').sort(()=>Math.random()-.5);
+    const BM = teamB.filter(p=>p.gender==='M').sort(()=>Math.random()-.5);
+    const BF = teamB.filter(p=>p.gender==='F').sort(()=>Math.random()-.5);
+
+    const amPerGrp = Math.round(targetMale / 2);
+    const afPerGrp = Math.round((4 - targetMale) / 2);
+    const bmPerGrp = targetMale - amPerGrp;
+    const bfPerGrp = (4 - targetMale) - afPerGrp;
+
+    const groups = Array.from({length: numGroups}, () => []);
+    const amQ=[...AM], afQ=[...AF], bmQ=[...BM], bfQ=[...BF];
+    const take = (q, n) => { const r=[]; for(let i=0;i<n&&q.length;i++) r.push(q.shift()); return r; };
+
+    for(let g=0; g<numGroups; g++) {
+      groups[g].push(...take(amQ,amPerGrp),...take(afQ,afPerGrp),...take(bmQ,bmPerGrp),...take(bfQ,bfPerGrp));
+    }
+    const rem = [...amQ,...afQ,...bmQ,...bfQ];
+    let gi=0; for(const p of rem){ groups[gi%numGroups].push(p); gi++; }
+
+    if(groups.some(g=>g.length!==4)) continue;
+
+    const score = groups.reduce((s,g)=>s+scoreGroup(g,pairMatrix),0);
+    if(score<bestScore){ bestScore=score; bestGroups=groups.map(g=>[...g]); }
+  }
+
+  if(!bestGroups) {
+    const pA=[...teamA], pB=[...teamB];
+    bestGroups = Array.from({length:numGroups},()=>
+      [pA.shift(),pA.shift(),pB.shift(),pB.shift()].filter(Boolean));
+  }
+
+  // 로컬 서치 (같은 성별끼리만 스왑 → 성별 균형 유지)
+  let improved=true, li=0;
+  while(improved && li<400) {
+    improved=false; li++;
+    for(let g1=0;g1<bestGroups.length;g1++) {
+      for(let g2=g1+1;g2<bestGroups.length;g2++) {
+        const aIdx1=bestGroups[g1].map((_,i)=>i).filter(i=>aSet.has(bestGroups[g1][i]?.id));
+        const aIdx2=bestGroups[g2].map((_,i)=>i).filter(i=>aSet.has(bestGroups[g2][i]?.id));
+        const bIdx1=bestGroups[g1].map((_,i)=>i).filter(i=>!aSet.has(bestGroups[g1][i]?.id));
+        const bIdx2=bestGroups[g2].map((_,i)=>i).filter(i=>!aSet.has(bestGroups[g2][i]?.id));
+        for(const [ix1,ix2] of [[aIdx1,aIdx2],[bIdx1,bIdx2]]) {
+          for(const i of ix1) for(const j of ix2) {
+            if(!bestGroups[g1][i]||!bestGroups[g2][j]) continue;
+            if(bestGroups[g1][i].gender!==bestGroups[g2][j].gender) continue;
+            const before=scoreGroup(bestGroups[g1],pairMatrix)+scoreGroup(bestGroups[g2],pairMatrix);
+            [bestGroups[g1][i],bestGroups[g2][j]]=[bestGroups[g2][j],bestGroups[g1][i]];
+            const after=scoreGroup(bestGroups[g1],pairMatrix)+scoreGroup(bestGroups[g2],pairMatrix);
+            if(after<before){improved=true;}
+            else{[bestGroups[g1][i],bestGroups[g2][j]]=[bestGroups[g2][j],bestGroups[g1][i]];}
+          }
+        }
+      }
+    }
+  }
+
+  currentGroups = bestGroups;
+  renderGroupResult(bestGroups, pairMatrix, aSet);
+  document.getElementById('saveGroupArea').style.display = 'block';
+  document.getElementById('saveYearMonth').value = new Date().toISOString().slice(0,7);
+}
+
+// (구 makePairs 함수 삭제 — 새 로직으로 대체됨)
+
+function renderABTeams(teamA, teamB, sumA, sumB) {
+  document.getElementById('abTeamDisplay').style.display = 'block';
+  const diff = Math.abs(Math.round(sumA) - Math.round(sumB));
+  const memberHtml = (p) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f0f0f0">
+      <div class="mini-avatar ${p.gender==='M'?'male':'female'}" style="width:28px;height:28px;font-size:11px">${p.name[0]}</div>
+      <div style="flex:1;font-size:12px;font-weight:600">${p.name} <span style="color:var(--text3)">${p.gender==='M'?'♂':'♀'}</span></div>
+      <div style="font-size:11px;color:var(--text3)">${Math.round(p.avg)}타</div>
+    </div>`;
+  document.getElementById('teamAList').innerHTML = teamA.map(p=>memberHtml(p)).join('');
+  document.getElementById('teamBList').innerHTML = teamB.map(p=>memberHtml(p)).join('');
+  document.getElementById('teamAAvg').textContent = `합계 ${Math.round(sumA)}타`;
+  document.getElementById('teamBAvg').textContent = `합계 ${Math.round(sumB)}타`;
+  const diffEl = document.getElementById('teamSumDiff');
+  if(diffEl) diffEl.innerHTML = `<span style="color:${diff===0?'var(--green-600)':'var(--orange)'}">두 팀 합계 차이: <strong>${diff}타</strong> (수학적 최솟값)</span>`;
+}
+
+function renderGroupResult(groups, pairMatrix, aIds) {
+  const regenBtn = `<button class="btn btn-gold" onclick="generateGroups()" style="width:100%;margin-bottom:12px">
+    🔄 다시 편성하기 (랜덤 재배치)
+  </button>`;
+
+  const groupCards = groups.map((grp, gi) => {
+    const validAvgs = grp.filter(p=>p).map(p=>p.avg);
+    const gAvg = validAvgs.length ? Math.round(validAvgs.reduce((a,b)=>a+b,0)/validAvgs.length) : '-';
+    const males   = grp.filter(p=>p&&p.gender==='M').length;
+    const females = grp.filter(p=>p&&p.gender==='F').length;
+    let overlaps = [];
+    const valid = grp.filter(Boolean);
+    for(let i=0;i<valid.length;i++) for(let j=i+1;j<valid.length;j++) {
+      const c = pairCount(pairMatrix, valid[i].id, valid[j].id);
+      if(c>0) overlaps.push(`${valid[i].name}↔${valid[j].name}(${c}회)`);
+    }
+    return `<div class="group-card">
+      <div class="group-header">
+        <span style="font-size:20px">🏌️</span> ${gi+1}조
+        <span style="flex:1"></span>
+        <span style="font-size:11px;color:var(--text3);font-weight:400">조 평균 ${gAvg}타 · 남${males}/여${females}</span>
+      </div>
+      ${valid.map(p => {
+        const teamLabel = aIds.has(p.id) ? 'A' : 'B';
+        const ssAvg = getSSAvg(p.id);
+        return `<div class="group-member">
+          <div class="mini-avatar ${p.gender==='M'?'male':'female'}">${p.name[0]}</div>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:600">${p.name} <span style="font-size:11px;color:var(--text3)">${p.gender==='M'?'♂':'♀'}</span></div>
+            <div style="font-size:11px;color:var(--text3)">${Math.round(p.avg)}타${ssAvg !== null ? ' · <span style="color:#6a1b9a">SS '+ssAvg.toFixed(1)+'</span>' : ''}</div>
+          </div>
+          <span class="player-badge ${teamLabel==='A'?'badge-a':'badge-b'}">${teamLabel}팀</span>
+        </div>`;
+      }).join('')}
+      ${overlaps.length
+        ? `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed #ddd;font-size:11px;color:#e65100">⚠️ 이전 동일조: ${overlaps.join(', ')}</div>`
+        : '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed #ddd;font-size:11px;color:var(--green-600)">✅ 이전 동일조 없음</div>'}
+    </div>`;
+  }).join('');
+
+  document.getElementById('groupResult').innerHTML = regenBtn + groupCards;
+}
+
+function saveGroupHistory() {
+  if(!currentGroups) return;
+  const ym = document.getElementById('saveYearMonth').value;
+  const memo = document.getElementById('saveMemo').value.trim();
+  if(!ym) { toast('년월을 선택해주세요'); return; }
+  const [year, month] = ym.split('-');
+  const label = `${year}년 ${parseInt(month)}월${memo ? ' · '+memo : ''}`;
+  const entry = {
+    id: uid(),
+    yearMonth: ym,
+    label,
+    date: new Date().toISOString().slice(0,10),
+    groups: currentGroups.map(g => g.filter(Boolean).map(p => p.id)),
+    groupNames: currentGroups.map(g => g.filter(Boolean).map(p => p.name))
+  };
+  groupHistory.push(entry);
+  saveData(STORE_KEYS.groupHistory, groupHistory);
+  toast(`${label} 조 편성 저장!`);
+  document.getElementById('saveGroupArea').style.display = 'none';
+  document.getElementById('saveMemo').value = '';
+  renderGroupHistory();
+}
+
+function renderGroupHistory() {
+  const card = document.getElementById('groupHistoryCard');
+  const list = document.getElementById('groupHistoryList');
+  if(!groupHistory.length) { card.style.display='none'; return; }
+  card.style.display = 'block';
+
+  // 년월별 그룹핑
+  const byYM = {};
+  groupHistory.forEach(gh => {
+    const ym = gh.yearMonth || gh.date?.slice(0,7) || '미분류';
+    if(!byYM[ym]) byYM[ym] = [];
+    byYM[ym].push(gh);
+  });
+
+  const sortedYMs = Object.keys(byYM).sort((a,b)=>b.localeCompare(a));
+
+  list.innerHTML = sortedYMs.map(ym => {
+    const entries = byYM[ym];
+    const [y,m] = ym.split('-');
+    const ymLabel = y&&m ? `${y}년 ${parseInt(m)}월` : ym;
+    return `<div style="margin-bottom:16px">
+      <div style="font-size:13px;font-weight:700;color:var(--green-800);padding:6px 0;border-bottom:2px solid var(--green-200);margin-bottom:8px">
+        📅 ${ymLabel}
+      </div>
+      ${entries.map(gh => `
+        <div class="group-history-item" style="margin-bottom:8px">
+          <div class="group-history-date">${gh.label || gh.date} <span style="color:var(--text3)">(저장: ${gh.date})</span></div>
+          ${gh.groupNames.map((g,i) => `<div style="font-size:12px;margin-bottom:2px"><strong>${i+1}조</strong>: ${g.join(', ')}</div>`).join('')}
+          <button class="btn btn-small" style="margin-top:6px;background:#ffebee;color:var(--red);font-size:11px;padding:4px 10px" onclick="deleteGroupHistory('${gh.id}')">삭제</button>
+        </div>`).join('')}
+    </div>`;
+  }).join('');
+}
+
+function deleteGroupHistory(hid) {
+  groupHistory = groupHistory.filter(g => g.id !== hid);
+  saveData(STORE_KEYS.groupHistory, groupHistory);
+  toast('기록 삭제됨');
+  renderGroupHistory();
+}
+
+// ═══════════════════════════════════════
+// 이전 조편성 수동 입력
+// ═══════════════════════════════════════
+let manualGroups = []; // [{members:[pid,...]}]
+
+function toggleManualEntry() {
+  const area = document.getElementById('manualEntryArea');
+  const toggle = document.getElementById('manualEntryToggle');
+  const open = area.style.display === 'none';
+  area.style.display = open ? 'block' : 'none';
+  toggle.textContent = open ? '▲ 접기' : '▼ 펼치기';
+  if(open) {
+    manualGroups = [{ members: [] }];
+    document.getElementById('manualYearMonth').value = '';
+    renderManualGroups();
+  }
+}
+
+function addManualGroup() {
+  manualGroups.push({ members: [] });
+  renderManualGroups();
+}
+
+function removeManualGroup(gi) {
+  manualGroups.splice(gi, 1);
+  renderManualGroups();
+}
+
+function toggleManualMember(gi, pid) {
+  const grp = manualGroups[gi];
+  const idx = grp.members.indexOf(pid);
+  if(idx >= 0) grp.members.splice(idx, 1);
+  else grp.members.push(pid);
+  renderManualGroups();
+}
+
+function renderManualGroups() {
+  const div = document.getElementById('manualGroupList');
+  if(!players.length) { div.innerHTML = '<div style="font-size:12px;color:var(--text3);margin-bottom:12px">선수를 먼저 등록해주세요</div>'; return; }
+
+  div.innerHTML = manualGroups.map((grp, gi) => `
+    <div style="border:1.5px solid var(--green-200);border-radius:var(--radius-sm);padding:12px;margin-bottom:10px;background:var(--green-50)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <span style="font-size:13px;font-weight:700;color:var(--green-800)">${gi+1}조 <span style="font-weight:400;color:var(--text3)">(${grp.members.length}명 선택)</span></span>
+        ${manualGroups.length > 1 ? `<button onclick="removeManualGroup(${gi})" style="background:none;border:none;color:#ccc;cursor:pointer;font-size:16px">✕</button>` : ''}
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        ${players.map(p => {
+          const sel = grp.members.includes(p.id);
+          // 이미 다른 조에 배정된 선수 표시
+          const inOtherGroup = manualGroups.some((g, i) => i!==gi && g.members.includes(p.id));
+          return `<div onclick="${inOtherGroup && !sel ? '' : `toggleManualMember(${gi},'${p.id}')`}"
+            style="padding:5px 10px;border-radius:20px;font-size:12px;font-weight:600;cursor:${inOtherGroup&&!sel?'not-allowed':'pointer'};
+              border:1.5px solid ${sel?'var(--green-500)':inOtherGroup?'#ddd':'#ccc'};
+              background:${sel?'var(--green-500)':inOtherGroup?'#f5f5f5':'#fff'};
+              color:${sel?'#fff':inOtherGroup?'#ccc':'var(--text)'};
+              user-select:none">
+            ${p.name}<span style="font-size:10px;margin-left:3px">${p.gender==='M'?'♂':'♀'}</span>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`).join('');
+}
+
+function saveManualHistory() {
+  const ym = document.getElementById('manualYearMonth').value;
+  const memo = document.getElementById('manualMemo').value.trim();
+  if(!ym) { toast('년월을 선택해주세요'); return; }
+  const validGroups = manualGroups.filter(g => g.members.length > 0);
+  if(!validGroups.length) { toast('최소 1개 조에 선수를 선택해주세요'); return; }
+
+  const [year, month] = ym.split('-');
+  const label = `${year}년 ${parseInt(month)}월${memo ? ' · '+memo : ''} (직접입력)`;
+  const entry = {
+    id: uid(),
+    yearMonth: ym,
+    label,
+    date: new Date().toISOString().slice(0,10),
+    manual: true,
+    groups: validGroups.map(g => [...g.members]),
+    groupNames: validGroups.map(g => g.members.map(pid => players.find(p=>p.id===pid)?.name ?? '?'))
+  };
+  groupHistory.push(entry);
+  saveData(STORE_KEYS.groupHistory, groupHistory);
+  toast(`${label} 저장!`);
+  manualGroups = [{ members: [] }];
+  renderManualGroups();
+  document.getElementById('manualYearMonth').value = '';
+  document.getElementById('manualMemo').value = '';
+  renderGroupHistory();
+}
+document.addEventListener('DOMContentLoaded', () => {
+  renderPlayers();
+  refreshScoreTab();
+  document.getElementById('scoreDate').value = new Date().toISOString().slice(0,10);
+});
+
+document.getElementById('playerName').addEventListener('keydown', e => { if(e.key==='Enter') addPlayer(); });
+document.getElementById('scoreValue').addEventListener('keydown', e => { if(e.key==='Enter') addScore(); });
+</script>
+</body>
+</html>
