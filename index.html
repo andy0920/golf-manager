@@ -466,10 +466,14 @@ let players = [], scores = [], ssHandis = [], groupHistory = [];
 let currentGroups = null;
 let _ready = false;
 
-// Firestore에 저장 (fire-and-forget — UI는 이미 로컬 배열로 업데이트됨)
+// Firestore에 저장 — Promise 반환 (await 가능)
 function saveData(key, data) {
-  db.collection(GOLF_COL).doc(key).set({ items: data })
-    .catch(e => { console.error('저장 오류:', e); toast('저장 실패 — 네트워크 확인'); });
+  return db.collection(GOLF_COL).doc(key).set({ items: data })
+    .catch(e => {
+      console.error('저장 오류:', key, e);
+      toast('❌ 저장 실패 — 네트워크를 확인해주세요');
+      throw e;
+    });
 }
 
 function activeTab() {
@@ -479,7 +483,6 @@ function activeTab() {
 
 async function initFirebase() {
   try {
-    // 초기 데이터 한 번에 로드
     const [p, s, ss, gh] = await Promise.all([
       db.collection(GOLF_COL).doc(DOC.players).get(),
       db.collection(GOLF_COL).doc(DOC.scores).get(),
@@ -494,15 +497,14 @@ async function initFirebase() {
     document.getElementById('loadingOverlay').style.display = 'none';
     _ready = true;
 
-    // 첫 렌더
     renderPlayers();
     refreshScoreTab();
     document.getElementById('scoreDate').value = new Date().toISOString().slice(0,10);
 
-    // 실시간 리스너 — 다른 기기에서 변경하면 자동 반영
+    // 실시간 리스너 — 문서 없다가 새로 생겨도(!snap.exists 제거) 반영
     db.collection(GOLF_COL).doc(DOC.players).onSnapshot(snap => {
-      if(!_ready || !snap.exists) return;
-      players = snap.data().items || [];
+      if(!_ready) return;
+      players = snap.exists ? (snap.data().items || []) : [];
       renderPlayers();
       const t = activeTab();
       if(t==='scores') refreshScoreTab();
@@ -510,25 +512,26 @@ async function initFirebase() {
       if(t==='groups') refreshGroupTab();
     });
     db.collection(GOLF_COL).doc(DOC.scores).onSnapshot(snap => {
-      if(!_ready || !snap.exists) return;
-      scores = snap.data().items || [];
+      if(!_ready) return;
+      scores = snap.exists ? (snap.data().items || []) : [];
       if(activeTab()==='scores') renderRecentScores();
       if(activeTab()==='stats')  refreshStats();
     });
     db.collection(GOLF_COL).doc(DOC.ssHandis).onSnapshot(snap => {
-      if(!_ready || !snap.exists) return;
-      ssHandis = snap.data().items || [];
+      if(!_ready) return;
+      ssHandis = snap.exists ? (snap.data().items || []) : [];
       renderPlayers();
       if(activeTab()==='stats') refreshStats();
     });
     db.collection(GOLF_COL).doc(DOC.groupHistory).onSnapshot(snap => {
-      if(!_ready || !snap.exists) return;
-      groupHistory = snap.data().items || [];
+      if(!_ready) return;
+      groupHistory = snap.exists ? (snap.data().items || []) : [];
+      // 탭 상관없이 항상 groupHistory 최신화, 조편성 탭이면 화면도 갱신
       if(activeTab()==='groups') renderGroupHistory();
     });
 
   } catch(e) {
-    console.error('Firebase 오류:', e);
+    console.error('Firebase 초기화 오류:', e);
     document.getElementById('loadingOverlay').innerHTML =
       '<div style="text-align:center;color:#fff"><div style="font-size:32px;margin-bottom:12px">⚠️</div><div style="font-size:14px">데이터 로드 실패<br><br>인터넷 연결을 확인하고<br>새로고침 해주세요</div></div>';
   }
@@ -1277,7 +1280,7 @@ function renderManualGroups() {
     </div>`).join('');
 }
 
-function saveManualHistory() {
+async function saveManualHistory() {
   const ym = document.getElementById('manualYearMonth').value;
   const memo = document.getElementById('manualMemo').value.trim();
   if(!ym) { toast('년월을 선택해주세요'); return; }
@@ -1296,13 +1299,18 @@ function saveManualHistory() {
     groupNames: validGroups.map(g => g.members.map(pid => players.find(p=>p.id===pid)?.name ?? '?'))
   };
   groupHistory.push(entry);
-  saveData(STORE_KEYS.groupHistory, groupHistory);
-  toast(`${label} 저장!`);
-  manualGroups = [{ members: [] }];
-  renderManualGroups();
-  document.getElementById('manualYearMonth').value = '';
-  document.getElementById('manualMemo').value = '';
-  renderGroupHistory();
+  try {
+    await saveData(STORE_KEYS.groupHistory, groupHistory);
+    toast(`✅ ${label} 저장 완료!`);
+    manualGroups = [{ members: [] }];
+    renderManualGroups();
+    document.getElementById('manualYearMonth').value = '';
+    document.getElementById('manualMemo').value = '';
+    renderGroupHistory();
+  } catch(e) {
+    // saveData 내부에서 toast 표시하므로 여기선 groupHistory 롤백만
+    groupHistory.pop();
+  }
 }
 document.addEventListener('DOMContentLoaded', () => {
   initFirebase();
