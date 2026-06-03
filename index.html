@@ -463,9 +463,9 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-// 모바일 브라우저 WebSocket 차단 대비 — HTTP Long Polling 강제 사용
+// 데스크탑/모바일 모두 최적 전송 방식 자동 감지
 db.settings({
-  experimentalForceLongPolling: true,
+  experimentalAutoDetectLongPolling: true,
   merge: true
 });
 const GOLF_COL = 'golf';
@@ -574,10 +574,10 @@ async function initFirebase() {
           db.collection(GOLF_COL).doc(DOC.ssHandis).get(),
           db.collection(GOLF_COL).doc(DOC.groupHistory).get(),
         ]);
-        if(p2.exists)  players      = p2.data().items  || players;
-        if(s2.exists)  scores       = s2.data().items  || scores;
-        if(ss2.exists) ssHandis     = ss2.data().items || ssHandis;
-        if(gh2.exists) groupHistory = gh2.data().items || groupHistory;
+        if(p2.exists)  { const r=p2.data().items||[]; if(r.length>=players.length) players=r; }
+        if(s2.exists)  { const r=s2.data().items||[]; if(r.length>=scores.length) scores=r; }
+        if(ss2.exists) { const r=ss2.data().items||[]; if(r.length>=ssHandis.length) ssHandis=r; }
+        if(gh2.exists) { const r=gh2.data().items||[]; if(r.length>=groupHistory.length) groupHistory=r; }
         const t = activeTab();
         renderPlayers();
         if(t==='scores') { refreshScoreTab(); }
@@ -611,10 +611,17 @@ async function manualRefresh() {
       db.collection(GOLF_COL).doc(DOC.ssHandis).get(),
       db.collection(GOLF_COL).doc(DOC.groupHistory).get(),
     ]);
-    if(p.exists)  players      = p.data().items  || players;
-    if(s.exists)  scores       = s.data().items  || scores;
-    if(ss.exists) ssHandis     = ss.data().items || ssHandis;
-    if(gh.exists) groupHistory = gh.data().items || groupHistory;
+    // Firestore 데이터가 로컬보다 많을 때만 덮어씀 (로컬 데이터 보호)
+    const merge = (local, snap) => {
+      if(!snap.exists) return local;
+      const remote = snap.data().items || [];
+      return remote.length >= local.length ? remote : local;
+    };
+    players      = merge(players,      p);
+    scores       = merge(scores,       s);
+    ssHandis     = merge(ssHandis,     ss);
+    groupHistory = merge(groupHistory, gh);
+
     renderPlayers();
     const t = activeTab();
     if(t==='scores') refreshScoreTab();
