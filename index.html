@@ -180,6 +180,9 @@ label { display:block; font-size:13px; font-weight:500; color:var(--text2); marg
 <div class="header">
   <h1><span>⛳</span> 골프 스코어 매니저</h1>
   <p>선수 관리 · 점수 기록 · 통계 · 조 편성</p>
+  <button onclick="manualRefresh()" style="margin-top:8px;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:#fff;padding:5px 14px;border-radius:20px;font-size:12px;cursor:pointer;font-family:inherit">
+    🔄 데이터 새로고침
+  </button>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -379,14 +382,6 @@ label { display:block; font-size:13px; font-weight:500; color:var(--text2); marg
     </div>
   </div>
 
-  <div class="card" id="groupHistoryCard" style="display:none">
-    <div class="card-title">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
-      월별 조 편성 기록
-    </div>
-    <div id="groupHistoryList"></div>
-  </div>
-
   <!-- 이전 조편성 수동 입력 -->
   <div class="card">
     <div class="card-title" style="cursor:pointer" onclick="toggleManualEntry()">
@@ -417,6 +412,15 @@ label { display:block; font-size:13px; font-weight:500; color:var(--text2); marg
         이전 조편성 저장
       </button>
     </div>
+  </div>
+
+  <!-- 월별 조편성 기록 — 수동입력 카드 바로 아래 -->
+  <div class="card" id="groupHistoryCard" style="display:none">
+    <div class="card-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+      월별 조 편성 기록
+    </div>
+    <div id="groupHistoryList"></div>
   </div>
 </div>
 
@@ -466,14 +470,29 @@ let players = [], scores = [], ssHandis = [], groupHistory = [];
 let currentGroups = null;
 let _ready = false;
 
-// Firestore에 저장 — Promise 반환 (await 가능)
+// localStorage + Firestore 동시 저장
+// localStorage: 항상 즉시 저장 (같은 기기 재접속 보장)
+// Firestore: 기기 간 동기화 (네트워크 필요)
 function saveData(key, data) {
-  return db.collection(GOLF_COL).doc(key).set({ items: data })
+  // 1. localStorage에 즉시 저장 (오프라인/네트워크 오류 대비)
+  try {
+    localStorage.setItem('golf_' + key, JSON.stringify(data));
+  } catch(e) {
+    console.warn('localStorage 저장 실패:', e);
+  }
+
+  // 2. Firestore에 저장 (다른 기기 동기화)
+  db.collection(GOLF_COL).doc(key).set({ items: data })
+    .then(() => console.log('Firestore 저장 완료:', key))
     .catch(e => {
-      console.error('저장 오류:', key, e);
-      toast('❌ 저장 실패 — 네트워크를 확인해주세요');
-      throw e;
+      console.error('Firestore 저장 오류:', key, e);
+      toast('⚠️ 클라우드 동기화 실패 (로컬에는 저장됨)');
     });
+}
+
+function loadLocalData(key) {
+  try { return JSON.parse(localStorage.getItem('golf_' + key)) || []; }
+  catch(e) { return []; }
 }
 
 function activeTab() {
@@ -483,16 +502,23 @@ function activeTab() {
 
 async function initFirebase() {
   try {
+    // source:'server' → 캐시 무시하고 항상 서버에서 최신 데이터 읽기
     const [p, s, ss, gh] = await Promise.all([
-      db.collection(GOLF_COL).doc(DOC.players).get(),
-      db.collection(GOLF_COL).doc(DOC.scores).get(),
-      db.collection(GOLF_COL).doc(DOC.ssHandis).get(),
-      db.collection(GOLF_COL).doc(DOC.groupHistory).get(),
+      db.collection(GOLF_COL).doc(DOC.players).get({ source: 'server' }),
+      db.collection(GOLF_COL).doc(DOC.scores).get({ source: 'server' }),
+      db.collection(GOLF_COL).doc(DOC.ssHandis).get({ source: 'server' }),
+      db.collection(GOLF_COL).doc(DOC.groupHistory).get({ source: 'server' }),
     ]);
-    players      = p.exists  ? (p.data().items  || []) : [];
-    scores       = s.exists  ? (s.data().items  || []) : [];
-    ssHandis     = ss.exists ? (ss.data().items || []) : [];
-    groupHistory = gh.exists ? (gh.data().items || []) : [];
+
+    players      = (p.exists  && p.data().items?.length)  ? p.data().items  : loadLocalData('players');
+    scores       = (s.exists  && s.data().items?.length)  ? s.data().items  : loadLocalData('scores');
+    ssHandis     = (ss.exists && ss.data().items?.length) ? ss.data().items : loadLocalData('ssHandis');
+    groupHistory = (gh.exists && gh.data().items?.length) ? gh.data().items : loadLocalData('groupHistory');
+
+    if(!p.exists  && players.length)      saveData('players',      players);
+    if(!s.exists  && scores.length)       saveData('scores',       scores);
+    if(!ss.exists && ssHandis.length)     saveData('ssHandis',     ssHandis);
+    if(!gh.exists && groupHistory.length) saveData('groupHistory', groupHistory);
 
     document.getElementById('loadingOverlay').style.display = 'none';
     _ready = true;
@@ -501,10 +527,11 @@ async function initFirebase() {
     refreshScoreTab();
     document.getElementById('scoreDate').value = new Date().toISOString().slice(0,10);
 
-    // 실시간 리스너 — 문서 없다가 새로 생겨도(!snap.exists 제거) 반영
+    // 실시간 리스너
     db.collection(GOLF_COL).doc(DOC.players).onSnapshot(snap => {
       if(!_ready) return;
-      players = snap.exists ? (snap.data().items || []) : [];
+      const remote = snap.exists ? (snap.data().items || []) : [];
+      if(remote.length || !players.length) { players = remote; try { localStorage.setItem('golf_players', JSON.stringify(players)); } catch(e){} }
       renderPlayers();
       const t = activeTab();
       if(t==='scores') refreshScoreTab();
@@ -513,27 +540,84 @@ async function initFirebase() {
     });
     db.collection(GOLF_COL).doc(DOC.scores).onSnapshot(snap => {
       if(!_ready) return;
-      scores = snap.exists ? (snap.data().items || []) : [];
+      const remote = snap.exists ? (snap.data().items || []) : [];
+      if(remote.length || !scores.length) { scores = remote; try { localStorage.setItem('golf_scores', JSON.stringify(scores)); } catch(e){} }
       if(activeTab()==='scores') renderRecentScores();
       if(activeTab()==='stats')  refreshStats();
     });
     db.collection(GOLF_COL).doc(DOC.ssHandis).onSnapshot(snap => {
       if(!_ready) return;
-      ssHandis = snap.exists ? (snap.data().items || []) : [];
+      const remote = snap.exists ? (snap.data().items || []) : [];
+      if(remote.length || !ssHandis.length) { ssHandis = remote; try { localStorage.setItem('golf_ssHandis', JSON.stringify(ssHandis)); } catch(e){} }
       renderPlayers();
       if(activeTab()==='stats') refreshStats();
     });
     db.collection(GOLF_COL).doc(DOC.groupHistory).onSnapshot(snap => {
       if(!_ready) return;
-      groupHistory = snap.exists ? (snap.data().items || []) : [];
-      // 탭 상관없이 항상 groupHistory 최신화, 조편성 탭이면 화면도 갱신
+      const remote = snap.exists ? (snap.data().items || []) : [];
+      if(remote.length || !groupHistory.length) { groupHistory = remote; try { localStorage.setItem('golf_groupHistory', JSON.stringify(groupHistory)); } catch(e){} }
       if(activeTab()==='groups') renderGroupHistory();
+    });
+
+    // 모바일 포그라운드 복귀 시 서버에서 강제 새로고침
+    document.addEventListener('visibilitychange', async () => {
+      if(document.visibilityState !== 'visible' || !_ready) return;
+      try {
+        const [p2, s2, ss2, gh2] = await Promise.all([
+          db.collection(GOLF_COL).doc(DOC.players).get({ source: 'server' }),
+          db.collection(GOLF_COL).doc(DOC.scores).get({ source: 'server' }),
+          db.collection(GOLF_COL).doc(DOC.ssHandis).get({ source: 'server' }),
+          db.collection(GOLF_COL).doc(DOC.groupHistory).get({ source: 'server' }),
+        ]);
+        if(p2.exists)  players      = p2.data().items  || players;
+        if(s2.exists)  scores       = s2.data().items  || scores;
+        if(ss2.exists) ssHandis     = ss2.data().items || ssHandis;
+        if(gh2.exists) groupHistory = gh2.data().items || groupHistory;
+        const t = activeTab();
+        renderPlayers();
+        if(t==='scores') { refreshScoreTab(); }
+        if(t==='stats')  refreshStats();
+        if(t==='groups') refreshGroupTab();
+      } catch(e) { console.warn('포그라운드 새로고침 실패:', e); }
     });
 
   } catch(e) {
     console.error('Firebase 초기화 오류:', e);
-    document.getElementById('loadingOverlay').innerHTML =
-      '<div style="text-align:center;color:#fff"><div style="font-size:32px;margin-bottom:12px">⚠️</div><div style="font-size:14px">데이터 로드 실패<br><br>인터넷 연결을 확인하고<br>새로고침 해주세요</div></div>';
+    players      = loadLocalData('players');
+    scores       = loadLocalData('scores');
+    ssHandis     = loadLocalData('ssHandis');
+    groupHistory = loadLocalData('groupHistory');
+    document.getElementById('loadingOverlay').style.display = 'none';
+    _ready = true;
+    renderPlayers();
+    refreshScoreTab();
+    document.getElementById('scoreDate').value = new Date().toISOString().slice(0,10);
+    toast('⚠️ 클라우드 연결 실패 — 로컬 데이터로 실행 중');
+  }
+}
+
+async function manualRefresh() {
+  if(!_ready) return;
+  toast('🔄 최신 데이터 불러오는 중...');
+  try {
+    const [p, s, ss, gh] = await Promise.all([
+      db.collection(GOLF_COL).doc(DOC.players).get({ source: 'server' }),
+      db.collection(GOLF_COL).doc(DOC.scores).get({ source: 'server' }),
+      db.collection(GOLF_COL).doc(DOC.ssHandis).get({ source: 'server' }),
+      db.collection(GOLF_COL).doc(DOC.groupHistory).get({ source: 'server' }),
+    ]);
+    if(p.exists)  players      = p.data().items  || players;
+    if(s.exists)  scores       = s.data().items  || scores;
+    if(ss.exists) ssHandis     = ss.data().items || ssHandis;
+    if(gh.exists) groupHistory = gh.data().items || groupHistory;
+    renderPlayers();
+    const t = activeTab();
+    if(t==='scores') refreshScoreTab();
+    if(t==='stats')  refreshStats();
+    if(t==='groups') refreshGroupTab();
+    toast('✅ 최신 데이터 반영 완료');
+  } catch(e) {
+    toast('❌ 새로고침 실패 — 네트워크 확인');
   }
 }
 
@@ -1280,7 +1364,7 @@ function renderManualGroups() {
     </div>`).join('');
 }
 
-async function saveManualHistory() {
+function saveManualHistory() {
   const ym = document.getElementById('manualYearMonth').value;
   const memo = document.getElementById('manualMemo').value.trim();
   if(!ym) { toast('년월을 선택해주세요'); return; }
@@ -1298,19 +1382,24 @@ async function saveManualHistory() {
     groups: validGroups.map(g => [...g.members]),
     groupNames: validGroups.map(g => g.members.map(pid => players.find(p=>p.id===pid)?.name ?? '?'))
   };
+
+  // 로컬 즉시 반영
   groupHistory.push(entry);
-  try {
-    await saveData(STORE_KEYS.groupHistory, groupHistory);
-    toast(`✅ ${label} 저장 완료!`);
-    manualGroups = [{ members: [] }];
-    renderManualGroups();
-    document.getElementById('manualYearMonth').value = '';
-    document.getElementById('manualMemo').value = '';
-    renderGroupHistory();
-  } catch(e) {
-    // saveData 내부에서 toast 표시하므로 여기선 groupHistory 롤백만
-    groupHistory.pop();
-  }
+  renderGroupHistory();
+
+  // 기록 카드로 스크롤
+  const card = document.getElementById('groupHistoryCard');
+  if(card) setTimeout(() => card.scrollIntoView({ behavior:'smooth', block:'start' }), 100);
+
+  // Firestore 저장 (백그라운드)
+  saveData(STORE_KEYS.groupHistory, groupHistory);
+  toast(`✅ ${label} 저장!`);
+
+  // 입력 초기화
+  manualGroups = [{ members: [] }];
+  renderManualGroups();
+  document.getElementById('manualYearMonth').value = '';
+  document.getElementById('manualMemo').value = '';
 }
 document.addEventListener('DOMContentLoaded', () => {
   initFirebase();
