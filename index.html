@@ -462,6 +462,12 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+
+// 모바일 브라우저 WebSocket 차단 대비 — HTTP Long Polling 강제 사용
+db.settings({
+  experimentalForceLongPolling: true,
+  merge: true
+});
 const GOLF_COL = 'golf';
 const DOC = { players:'players', scores:'scores', ssHandis:'ssHandis', groupHistory:'groupHistory' };
 const STORE_KEYS = DOC; // 기존 코드 호환용 alias
@@ -502,12 +508,11 @@ function activeTab() {
 
 async function initFirebase() {
   try {
-    // source:'server' → 캐시 무시하고 항상 서버에서 최신 데이터 읽기
     const [p, s, ss, gh] = await Promise.all([
-      db.collection(GOLF_COL).doc(DOC.players).get({ source: 'server' }),
-      db.collection(GOLF_COL).doc(DOC.scores).get({ source: 'server' }),
-      db.collection(GOLF_COL).doc(DOC.ssHandis).get({ source: 'server' }),
-      db.collection(GOLF_COL).doc(DOC.groupHistory).get({ source: 'server' }),
+      db.collection(GOLF_COL).doc(DOC.players).get(),
+      db.collection(GOLF_COL).doc(DOC.scores).get(),
+      db.collection(GOLF_COL).doc(DOC.ssHandis).get(),
+      db.collection(GOLF_COL).doc(DOC.groupHistory).get(),
     ]);
 
     players      = (p.exists  && p.data().items?.length)  ? p.data().items  : loadLocalData('players');
@@ -564,10 +569,10 @@ async function initFirebase() {
       if(document.visibilityState !== 'visible' || !_ready) return;
       try {
         const [p2, s2, ss2, gh2] = await Promise.all([
-          db.collection(GOLF_COL).doc(DOC.players).get({ source: 'server' }),
-          db.collection(GOLF_COL).doc(DOC.scores).get({ source: 'server' }),
-          db.collection(GOLF_COL).doc(DOC.ssHandis).get({ source: 'server' }),
-          db.collection(GOLF_COL).doc(DOC.groupHistory).get({ source: 'server' }),
+          db.collection(GOLF_COL).doc(DOC.players).get(),
+          db.collection(GOLF_COL).doc(DOC.scores).get(),
+          db.collection(GOLF_COL).doc(DOC.ssHandis).get(),
+          db.collection(GOLF_COL).doc(DOC.groupHistory).get(),
         ]);
         if(p2.exists)  players      = p2.data().items  || players;
         if(s2.exists)  scores       = s2.data().items  || scores;
@@ -601,10 +606,10 @@ async function manualRefresh() {
   toast('🔄 최신 데이터 불러오는 중...');
   try {
     const [p, s, ss, gh] = await Promise.all([
-      db.collection(GOLF_COL).doc(DOC.players).get({ source: 'server' }),
-      db.collection(GOLF_COL).doc(DOC.scores).get({ source: 'server' }),
-      db.collection(GOLF_COL).doc(DOC.ssHandis).get({ source: 'server' }),
-      db.collection(GOLF_COL).doc(DOC.groupHistory).get({ source: 'server' }),
+      db.collection(GOLF_COL).doc(DOC.players).get(),
+      db.collection(GOLF_COL).doc(DOC.scores).get(),
+      db.collection(GOLF_COL).doc(DOC.ssHandis).get(),
+      db.collection(GOLF_COL).doc(DOC.groupHistory).get(),
     ]);
     if(p.exists)  players      = p.data().items  || players;
     if(s.exists)  scores       = s.data().items  || scores;
